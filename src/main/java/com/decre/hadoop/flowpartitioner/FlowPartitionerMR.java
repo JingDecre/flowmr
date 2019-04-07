@@ -1,9 +1,9 @@
-package com.decre.hadoop.flowsort;
+package com.decre.hadoop.flowpartitioner;
 
-import com.decre.hadoop.bean.FlowBean;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
@@ -12,13 +12,14 @@ import java.io.IOException;
 
 /**
  * @author Decre
- * @date 2019/4/7 0007 20:40
+ * @date 2019/4/7 0007 20:57
  * @since 1.0.0
- * Descirption: 流量排序入口类，输入文件为流量统计生产的文件
+ * Descirption:
  */
-public class FlowSortMR {
+public class FlowPartitionerMR {
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
+
         Configuration conf = new Configuration();
         // 集群上，通过命令行获得输入和输出路径，实现动态化的conf配置
         String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
@@ -29,21 +30,31 @@ public class FlowSortMR {
             System.exit(2);
         }
 
-        Job job = Job.getInstance(conf, "flow sort");
+        Job job = Job.getInstance(conf, "flow partition");
 
-        job.setJarByClass(FlowSortMR.class);
+        job.setJarByClass(FlowPartitionerMR.class);
 
-        job.setMapperClass(FlowSortMRMapper.class);
-        job.setReducerClass(FlowSortMRReducer.class);
+        job.setMapperClass(FlowPartitionerMRMapper.class);
+        job.setReducerClass(FlowPartitionerMRReducer.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(Text.class);
 
-        job.setOutputKeyClass(FlowBean.class);
-        job.setOutputValueClass(NullWritable.class);
+        /**
+         * 非常重要的两句代码
+         */
+        job.setPartitionerClass(ProvincePartitioner.class);
+        job.setNumReduceTasks(10);
+
         // 设置输入输出路径
         for (int i = 0; i < otherArgs.length - 1; ++i) {
             FileInputFormat.addInputPath(job, new Path(otherArgs[i]));
         }
 
         Path outputPath = new Path(otherArgs[otherArgs.length - 1]);
+        /*FileSystem fileSystem = FileSystem.get(conf);
+        if (fileSystem.exists(outputPath)) {
+            fileSystem.delete(outputPath, true);
+        }*/
 
         // 是否安全退出
         boolean isDone = job.waitForCompletion(true);
